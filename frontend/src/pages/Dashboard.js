@@ -50,6 +50,8 @@ import {
   BarChart as BarChartIcon,
   PieChart as PieChartIcon,
   Assessment as AssessmentIcon,
+  PlayArrow as PlayIcon,
+  Cancel as CancelIcon,
 } from '@mui/icons-material';
 import {
   LineChart,
