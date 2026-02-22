@@ -320,7 +320,7 @@ router.post('/bulk-update', auth, async (req, res) => {
         percentage: 100
       },
       scheduleType: 'immediate',
-      status: 'approved',
+      status: 'pending_approval',
       createdBy: {
         userId: req.user.id,
         userName: req.user.name
@@ -335,42 +335,43 @@ router.post('/bulk-update', auth, async (req, res) => {
 
     await schedule.save();
 
-    const jobs = [];
-    for (const device of devices_list) {
-      const existingJob = await UpdateJob.findOne({
-        deviceImei: device.imei,
-        currentState: { $in: ['scheduled', 'notified', 'download_started', 'installation_started'] }
-      });
+    // Jobs will be created when admin approves the schedule
+    // const jobs = [];
+    // for (const device of devices_list) {
+    //   const existingJob = await UpdateJob.findOne({
+    //     deviceImei: device.imei,
+    //     currentState: { $in: ['scheduled', 'notified', 'download_started', 'installation_started'] }
+    //   });
 
-      if (existingJob) {
-        console.log(`Device ${device.imei} already has a pending job`);
-        continue;
-      }
+    //   if (existingJob) {
+    //     console.log(`Device ${device.imei} already has a pending job`);
+    //     continue;
+    //   }
 
-      const job = new UpdateJob({
-        deviceImei: device.imei,
-        scheduleId: schedule._id,
-        fromVersionCode: device.appVersionCode,
-        toVersionCode: targetVersionCode,
-        currentState: 'scheduled',
-        progress: {
-          downloadProgress: 0,
-          installationProgress: 0
-        },
-        timeline: [{
-          state: 'scheduled',
-          timestamp: new Date(),
-          metadata: { source: 'bulk_update' }
-        }]
-      });
+    //   const job = new UpdateJob({
+    //     deviceImei: device.imei,
+    //     scheduleId: schedule._id,
+    //     fromVersionCode: device.appVersionCode,
+    //     toVersionCode: targetVersionCode,
+    //     currentState: 'scheduled',
+    //     progress: {
+    //       downloadProgress: 0,
+    //       installationProgress: 0
+    //     },
+    //     timeline: [{
+    //       state: 'scheduled',
+    //       timestamp: new Date(),
+    //       metadata: { source: 'bulk_update' }
+    //     }]
+    //   });
       
-      await job.save();
-      jobs.push(job);
-    }
+    //   await job.save();
+    //   jobs.push(job);
+    // }
 
-    schedule.stats.totalDevices = jobs.length;
-    schedule.stats.inProgressDevices = jobs.length;
-    await schedule.save();
+    // schedule.stats.totalDevices = jobs.length;
+    // schedule.stats.inProgressDevices = jobs.length;
+    // await schedule.save();
 
     await AuditLog.create({
       action: 'BULK_UPDATE_SCHEDULED',
@@ -386,10 +387,10 @@ router.post('/bulk-update', auth, async (req, res) => {
 
     res.json({
       success: true,
-      message: `Scheduled updates for ${jobs.length} devices`,
+      message: `Created pending schedule for ${devices_list.length} devices. Please approve it to start updates.`,
       scheduleId: schedule._id,
-      jobCount: jobs.length,
-      skippedCount: devices_list.length - jobs.length
+      jobCount: 0,
+      // skippedCount: devices_list.length - jobs.length
     });
   } catch (error) {
     console.error('Bulk update error:', error);

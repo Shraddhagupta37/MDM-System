@@ -54,6 +54,7 @@ router.post('/', auth, async (req, res) => {
 
     const schedule = new UpdateSchedule({
       ...scheduleData,
+      status: 'pending_approval',
       stats: {
         totalDevices,
         completedDevices: 0,
@@ -79,7 +80,7 @@ router.post('/', auth, async (req, res) => {
 
     // Log the action
     await AuditLog.create({
-      action: 'CREATE_SCHEDULE',
+      action: 'SCHEDULE_CREATED',
       entityType: 'schedule',
       entityId: schedule._id,
       userId: req.user.id,
@@ -216,7 +217,7 @@ router.put('/:id/approve', auth, async (req, res) => {
     }
 
     await AuditLog.create({
-      action: 'APPROVE_SCHEDULE',
+      action: 'SCHEDULE_APPROVED',
       entityType: 'schedule',
       entityId: schedule._id,
       userId: req.user.id,

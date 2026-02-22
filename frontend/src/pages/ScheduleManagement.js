@@ -12,10 +12,6 @@ import {
   Button,
   Chip,
   IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   TextField,
   Alert,
   LinearProgress,
@@ -30,6 +26,7 @@ import {
   alpha,
   useTheme,
   Divider,
+  CircularProgress,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -49,6 +46,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import PageTransition from '../components/PageTransition';
 import StatsCard from '../components/StatsCard';
 import EmptyState from '../components/EmptyState';
+import StyledDialog from '../components/StyledDialog';
 
 function ScheduleManagement() {
   const theme = useTheme();
@@ -61,6 +59,7 @@ function ScheduleManagement() {
   const [selectedSchedule, setSelectedSchedule] = useState(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [scheduleToDelete, setScheduleToDelete] = useState(null);
+  const [creating, setCreating] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -137,9 +136,12 @@ function ScheduleManagement() {
         return;
       }
 
-      setLoading(true);
+      setCreating(true);
+      setError(null);
+      
       const response = await schedules.create(formData);
       console.log('Schedule created:', response.data);
+      
       setDialogOpen(false);
       
       // Reset form
@@ -162,12 +164,11 @@ function ScheduleManagement() {
       });
       
       await fetchData();
-      setError(null);
     } catch (error) {
       console.error('Error creating schedule:', error);
       setError(error.response?.data?.error || 'Failed to create schedule');
     } finally {
-      setLoading(false);
+      setCreating(false);
     }
   };
 
@@ -270,6 +271,7 @@ function ScheduleManagement() {
     total: scheduleList.length,
     inProgress: scheduleList.filter(s => s.status === 'in_progress').length,
     pending: scheduleList.filter(s => s.status === 'pending_approval').length,
+    approved: scheduleList.filter(s => s.status === 'approved').length,
     completed: scheduleList.filter(s => s.status === 'completed').length,
     cancelled: scheduleList.filter(s => s.status === 'cancelled').length,
   };
@@ -293,8 +295,8 @@ function ScheduleManagement() {
             startIcon={<AddIcon />}
             onClick={() => setDialogOpen(true)}
             sx={{
-              bgcolor: '#3b82f6',
-              '&:hover': { bgcolor: '#2563eb' },
+              bgcolor: '#60a5fa',
+              '&:hover': { bgcolor: '#3b82f6' },
             }}
           >
             New Schedule
@@ -304,7 +306,15 @@ function ScheduleManagement() {
         {error && (
           <Alert 
             severity="error" 
-            sx={{ mb: 2 }} 
+            sx={{ 
+              mb: 2,
+              bgcolor: 'rgba(239, 68, 68, 0.1)',
+              color: '#ef4444',
+              border: '1px solid rgba(239, 68, 68, 0.2)',
+              '& .MuiAlert-icon': {
+                color: '#ef4444',
+              },
+            }} 
             onClose={() => setError(null)}
           >
             {error}
@@ -318,7 +328,7 @@ function ScheduleManagement() {
               title="Total Schedules"
               value={stats.total}
               icon={<ScheduleIcon />}
-              color="#3b82f6"
+              color="#60a5fa"
             />
           </Grid>
           <Grid item xs={12} sm={6} md={2.4}>
@@ -339,18 +349,18 @@ function ScheduleManagement() {
           </Grid>
           <Grid item xs={12} sm={6} md={2.4}>
             <StatsCard
-              title="Completed"
-              value={stats.completed}
+              title="Approved"
+              value={stats.approved}
               icon={<CheckCircleIcon />}
               color="#8b5cf6"
             />
           </Grid>
           <Grid item xs={12} sm={6} md={2.4}>
             <StatsCard
-              title="Cancelled"
-              value={stats.cancelled}
-              icon={<CancelIcon />}
-              color="#ef4444"
+              title="Completed"
+              value={stats.completed}
+              icon={<CheckCircleIcon />}
+              color="#22c55e"
             />
           </Grid>
         </Grid>
@@ -375,7 +385,12 @@ function ScheduleManagement() {
                 {loading ? (
                   <TableRow>
                     <TableCell colSpan={8}>
-                      <LinearProgress sx={{ bgcolor: '#1a1a1a' }} />
+                      <LinearProgress sx={{ 
+                        bgcolor: '#27272a',
+                        '& .MuiLinearProgress-bar': {
+                          bgcolor: '#60a5fa',
+                        },
+                      }} />
                     </TableCell>
                   </TableRow>
                 ) : scheduleList.length === 0 ? (
@@ -553,7 +568,7 @@ function ScheduleManagement() {
                               </Tooltip>
                             )}
                             
-                            {(schedule.status === 'draft' || schedule.status === 'cancelled' || schedule.status === 'completed') && (
+                            {(schedule.status === 'draft' || schedule.status === 'cancelled' || schedule.status === 'completed' || schedule.status === 'approved') && (
                               <Tooltip title="Delete Schedule">
                                 <IconButton 
                                   size="small" 
@@ -580,8 +595,8 @@ function ScheduleManagement() {
         </Paper>
 
         {/* Create Schedule Dialog */}
-        <Dialog 
-          open={dialogOpen} 
+        <StyledDialog
+          open={dialogOpen}
           onClose={() => {
             setDialogOpen(false);
             setError(null);
@@ -602,517 +617,635 @@ function ScheduleManagement() {
                 batchInterval: 60,
               },
             });
-          }} 
-          maxWidth="md" 
-          fullWidth
-          PaperProps={{
-            sx: {
-              bgcolor: '#111111',
-              border: '1px solid #27272a',
-            }
           }}
+          title="Create Update Schedule"
+          onConfirm={handleCreateSchedule}
+          confirmText="Create Schedule"
+          loading={creating}
+          maxWidth="md"
         >
-          <DialogTitle sx={{ color: '#ffffff', borderBottom: '1px solid #27272a' }}>
-            Create Update Schedule
-          </DialogTitle>
-          <DialogContent sx={{ mt: 2 }}>
-            <Grid container spacing={2}>
-              <Grid item xs={12}>
+          <Grid container spacing={2} sx={{ mt: 0 }}>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Schedule Name"
+                value={formData.name}
+                onChange={(e) => setFormData({...formData, name: e.target.value})}
+                variant="outlined"
+                required
+                error={!formData.name && error?.includes('name')}
+                InputLabelProps={{ sx: { color: '#a1a1aa' } }}
+                InputProps={{ 
+                  sx: { 
+                    color: '#ffffff',
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#27272a',
+                    },
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#60a5fa',
+                    },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#60a5fa',
+                    },
+                  } 
+                }}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Description"
+                multiline
+                rows={2}
+                value={formData.description}
+                onChange={(e) => setFormData({...formData, description: e.target.value})}
+                variant="outlined"
+                InputLabelProps={{ sx: { color: '#a1a1aa' } }}
+                InputProps={{ 
+                  sx: { 
+                    color: '#ffffff',
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#27272a',
+                    },
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#60a5fa',
+                    },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#60a5fa',
+                    },
+                  } 
+                }}
+              />
+            </Grid>
+            <Grid item xs={6}>
+              <FormControl fullWidth variant="outlined" required>
+                <InputLabel sx={{ color: '#a1a1aa' }}>From Version</InputLabel>
+                <Select
+                  value={formData.fromVersionCode}
+                  onChange={(e) => setFormData({...formData, fromVersionCode: e.target.value})}
+                  label="From Version"
+                  sx={{ 
+                    color: '#ffffff',
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#27272a',
+                    },
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#60a5fa',
+                    },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#60a5fa',
+                    },
+                  }}
+                >
+                  {versionList.map(v => (
+                    <MenuItem key={v.versionCode} value={v.versionCode}>
+                      v{v.versionName} (Code: {v.versionCode})
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={6}>
+              <FormControl fullWidth variant="outlined" required>
+                <InputLabel sx={{ color: '#a1a1aa' }}>To Version</InputLabel>
+                <Select
+                  value={formData.toVersionCode}
+                  onChange={(e) => setFormData({...formData, toVersionCode: e.target.value})}
+                  label="To Version"
+                  sx={{ 
+                    color: '#ffffff',
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#27272a',
+                    },
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#60a5fa',
+                    },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#60a5fa',
+                    },
+                  }}
+                >
+                  {versionList.map(v => (
+                    <MenuItem key={v.versionCode} value={v.versionCode}>
+                      v{v.versionName} (Code: {v.versionCode})
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={6}>
+              <FormControl fullWidth variant="outlined">
+                <InputLabel sx={{ color: '#a1a1aa' }}>Schedule Type</InputLabel>
+                <Select
+                  value={formData.scheduleType}
+                  onChange={(e) => setFormData({...formData, scheduleType: e.target.value})}
+                  label="Schedule Type"
+                  sx={{ 
+                    color: '#ffffff',
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#27272a',
+                    },
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#60a5fa',
+                    },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#60a5fa',
+                    },
+                  }}
+                >
+                  <MenuItem value="immediate">Immediate</MenuItem>
+                  <MenuItem value="scheduled">Scheduled</MenuItem>
+                  <MenuItem value="phased">Phased Rollout</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            {formData.scheduleType === 'scheduled' && (
+              <Grid item xs={6}>
                 <TextField
                   fullWidth
-                  label="Schedule Name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  variant="outlined"
-                  required
-                  error={!formData.name && error?.includes('name')}
-                  InputLabelProps={{ sx: { color: '#a1a1aa' } }}
-                  InputProps={{ sx: { color: '#ffffff' } }}
+                  label="Schedule Time"
+                  type="datetime-local"
+                  value={formData.scheduledTime}
+                  onChange={(e) => setFormData({...formData, scheduledTime: e.target.value})}
+                  InputLabelProps={{ shrink: true, sx: { color: '#a1a1aa' } }}
+                  InputProps={{ 
+                    sx: { 
+                      color: '#ffffff',
+                      '& .MuiOutlinedInput-notchedOutline': {
+                        borderColor: '#27272a',
+                      },
+                      '&:hover .MuiOutlinedInput-notchedOutline': {
+                        borderColor: '#60a5fa',
+                      },
+                      '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                        borderColor: '#60a5fa',
+                      },
+                    } 
+                  }}
                 />
               </Grid>
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Description"
-                  multiline
-                  rows={2}
-                  value={formData.description}
-                  onChange={(e) => setFormData({...formData, description: e.target.value})}
-                  variant="outlined"
-                  InputLabelProps={{ sx: { color: '#a1a1aa' } }}
-                  InputProps={{ sx: { color: '#ffffff' } }}
-                />
-              </Grid>
-              <Grid item xs={6}>
-                <FormControl fullWidth variant="outlined" required>
-                  <InputLabel sx={{ color: '#a1a1aa' }}>From Version</InputLabel>
-                  <Select
-                    value={formData.fromVersionCode}
-                    onChange={(e) => setFormData({...formData, fromVersionCode: e.target.value})}
-                    label="From Version"
-                    sx={{ color: '#ffffff' }}
-                  >
-                    {versionList.map(v => (
-                      <MenuItem key={v.versionCode} value={v.versionCode}>
-                        v{v.versionName} (Code: {v.versionCode})
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={6}>
-                <FormControl fullWidth variant="outlined" required>
-                  <InputLabel sx={{ color: '#a1a1aa' }}>To Version</InputLabel>
-                  <Select
-                    value={formData.toVersionCode}
-                    onChange={(e) => setFormData({...formData, toVersionCode: e.target.value})}
-                    label="To Version"
-                    sx={{ color: '#ffffff' }}
-                  >
-                    {versionList.map(v => (
-                      <MenuItem key={v.versionCode} value={v.versionCode}>
-                        v{v.versionName} (Code: {v.versionCode})
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={6}>
-                <FormControl fullWidth variant="outlined">
-                  <InputLabel sx={{ color: '#a1a1aa' }}>Schedule Type</InputLabel>
-                  <Select
-                    value={formData.scheduleType}
-                    onChange={(e) => setFormData({...formData, scheduleType: e.target.value})}
-                    label="Schedule Type"
-                    sx={{ color: '#ffffff' }}
-                  >
-                    <MenuItem value="immediate">Immediate</MenuItem>
-                    <MenuItem value="scheduled">Scheduled</MenuItem>
-                    <MenuItem value="phased">Phased Rollout</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-              {formData.scheduleType === 'scheduled' && (
+            )}
+            {formData.scheduleType === 'phased' && (
+              <>
                 <Grid item xs={6}>
                   <TextField
                     fullWidth
-                    label="Schedule Time"
-                    type="datetime-local"
-                    value={formData.scheduledTime}
-                    onChange={(e) => setFormData({...formData, scheduledTime: e.target.value})}
-                    InputLabelProps={{ shrink: true, sx: { color: '#a1a1aa' } }}
-                    InputProps={{ sx: { color: '#ffffff' } }}
+                    label="Batch Size"
+                    type="number"
+                    value={formData.phasedConfig.batchSize}
+                    onChange={(e) => setFormData({
+                      ...formData, 
+                      phasedConfig: {...formData.phasedConfig, batchSize: parseInt(e.target.value)}
+                    })}
+                    InputLabelProps={{ sx: { color: '#a1a1aa' } }}
+                    InputProps={{ 
+                      sx: { 
+                        color: '#ffffff',
+                        '& .MuiOutlinedInput-notchedOutline': {
+                          borderColor: '#27272a',
+                        },
+                        '&:hover .MuiOutlinedInput-notchedOutline': {
+                          borderColor: '#60a5fa',
+                        },
+                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                          borderColor: '#60a5fa',
+                        },
+                      } 
+                    }}
                   />
                 </Grid>
-              )}
-              {formData.scheduleType === 'phased' && (
-                <>
-                  <Grid item xs={6}>
-                    <TextField
-                      fullWidth
-                      label="Batch Size"
-                      type="number"
-                      value={formData.phasedConfig.batchSize}
-                      onChange={(e) => setFormData({
-                        ...formData, 
-                        phasedConfig: {...formData.phasedConfig, batchSize: parseInt(e.target.value)}
-                      })}
-                      InputLabelProps={{ sx: { color: '#a1a1aa' } }}
-                      InputProps={{ sx: { color: '#ffffff' } }}
-                    />
-                  </Grid>
-                  <Grid item xs={6}>
-                    <TextField
-                      fullWidth
-                      label="Batch Interval (minutes)"
-                      type="number"
-                      value={formData.phasedConfig.batchInterval}
-                      onChange={(e) => setFormData({
-                        ...formData, 
-                        phasedConfig: {...formData.phasedConfig, batchInterval: parseInt(e.target.value)}
-                      })}
-                      InputLabelProps={{ sx: { color: '#a1a1aa' } }}
-                      InputProps={{ sx: { color: '#ffffff' } }}
-                    />
-                  </Grid>
-                </>
-              )}
+                <Grid item xs={6}>
+                  <TextField
+                    fullWidth
+                    label="Batch Interval (minutes)"
+                    type="number"
+                    value={formData.phasedConfig.batchInterval}
+                    onChange={(e) => setFormData({
+                      ...formData, 
+                      phasedConfig: {...formData.phasedConfig, batchInterval: parseInt(e.target.value)}
+                    })}
+                    InputLabelProps={{ sx: { color: '#a1a1aa' } }}
+                    InputProps={{ 
+                      sx: { 
+                        color: '#ffffff',
+                        '& .MuiOutlinedInput-notchedOutline': {
+                          borderColor: '#27272a',
+                        },
+                        '&:hover .MuiOutlinedInput-notchedOutline': {
+                          borderColor: '#60a5fa',
+                        },
+                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                          borderColor: '#60a5fa',
+                        },
+                      } 
+                    }}
+                  />
+                </Grid>
+              </>
+            )}
 
+            <Grid item xs={12}>
+              <Divider sx={{ my: 1, borderColor: '#27272a' }} />
+              <Typography variant="subtitle2" gutterBottom sx={{ color: '#ffffff', mt: 2 }}>
+                Target Criteria
+              </Typography>
+            </Grid>
+
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Target Regions (comma separated)"
+                placeholder="North America, Europe, Asia"
+                value={formData.targetCriteria.regions.join(', ')}
+                onChange={(e) => setFormData({
+                  ...formData,
+                  targetCriteria: {
+                    ...formData.targetCriteria,
+                    regions: e.target.value.split(',').map(s => s.trim()).filter(Boolean)
+                  }
+                })}
+                InputLabelProps={{ sx: { color: '#a1a1aa' } }}
+                InputProps={{ 
+                  sx: { 
+                    color: '#ffffff',
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#27272a',
+                    },
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#60a5fa',
+                    },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#60a5fa',
+                    },
+                  } 
+                }}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Target Cities (comma separated)"
+                placeholder="New York, London, Tokyo"
+                value={formData.targetCriteria.cities.join(', ')}
+                onChange={(e) => setFormData({
+                  ...formData,
+                  targetCriteria: {
+                    ...formData.targetCriteria,
+                    cities: e.target.value.split(',').map(s => s.trim()).filter(Boolean)
+                  }
+                })}
+                InputLabelProps={{ sx: { color: '#a1a1aa' } }}
+                InputProps={{ 
+                  sx: { 
+                    color: '#ffffff',
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#27272a',
+                    },
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#60a5fa',
+                    },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#60a5fa',
+                    },
+                  } 
+                }}
+              />
+            </Grid>
+            <Grid item xs={6}>
+              <TextField
+                fullWidth
+                label="Rollout Percentage"
+                type="number"
+                value={formData.targetCriteria.percentage}
+                onChange={(e) => setFormData({
+                  ...formData,
+                  targetCriteria: {
+                    ...formData.targetCriteria,
+                    percentage: parseInt(e.target.value)
+                  }
+                })}
+                inputProps={{ min: 1, max: 100 }}
+                InputLabelProps={{ sx: { color: '#a1a1aa' } }}
+                InputProps={{ 
+                  sx: { 
+                    color: '#ffffff',
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#27272a',
+                    },
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#60a5fa',
+                    },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#60a5fa',
+                    },
+                  } 
+                }}
+              />
+            </Grid>
+          </Grid>
+        </StyledDialog>
+
+        {/* Delete Confirmation Dialog */}
+        <StyledDialog
+          open={deleteDialogOpen}
+          onClose={() => setDeleteDialogOpen(false)}
+          title="Delete Schedule"
+          onConfirm={handleDeleteSchedule}
+          confirmText="Delete"
+          confirmColor="error"
+          loading={loading}
+        >
+          <Alert 
+            severity="warning" 
+            sx={{ 
+              mb: 2,
+              bgcolor: 'rgba(245, 158, 11, 0.1)',
+              color: '#f59e0b',
+              border: '1px solid rgba(245, 158, 11, 0.2)',
+              '& .MuiAlert-icon': {
+                color: '#f59e0b',
+              },
+            }}
+          >
+            This action cannot be undone.
+          </Alert>
+          <Typography sx={{ color: '#e4e4e7' }}>
+            Are you sure you want to delete schedule "{scheduleToDelete?.name}"?
+          </Typography>
+          {scheduleToDelete?.stats?.totalDevices > 0 && (
+            <Alert 
+              severity="info" 
+              sx={{ 
+                mt: 2,
+                bgcolor: 'rgba(96, 165, 250, 0.1)',
+                color: '#60a5fa',
+                border: '1px solid rgba(96, 165, 250, 0.2)',
+                '& .MuiAlert-icon': {
+                  color: '#60a5fa',
+                },
+              }}
+            >
+              This schedule has {scheduleToDelete.stats.totalDevices} associated update jobs that will also be deleted.
+            </Alert>
+          )}
+        </StyledDialog>
+
+        {/* Schedule Details Dialog */}
+        <StyledDialog
+          open={detailsDialogOpen}
+          onClose={() => setDetailsDialogOpen(false)}
+          title="Schedule Details"
+          maxWidth="md"
+          showConfirm={false}
+          showCancel={true}
+          cancelText="Close"
+        >
+          {selectedSchedule && (
+            <Grid container spacing={3} sx={{ mt: 0 }}>
               <Grid item xs={12}>
-                <Divider sx={{ my: 1, borderColor: '#27272a' }} />
-                <Typography variant="subtitle2" gutterBottom sx={{ color: '#ffffff', mt: 2 }}>
-                  Target Criteria
+                <Typography variant="h6" sx={{ color: '#ffffff', mb: 2 }}>
+                  {selectedSchedule.name}
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#a1a1aa', mb: 3 }}>
+                  {selectedSchedule.description || 'No description provided'}
                 </Typography>
               </Grid>
 
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Target Regions (comma separated)"
-                  placeholder="North America, Europe, Asia"
-                  value={formData.targetCriteria.regions.join(', ')}
-                  onChange={(e) => setFormData({
-                    ...formData,
-                    targetCriteria: {
-                      ...formData.targetCriteria,
-                      regions: e.target.value.split(',').map(s => s.trim()).filter(Boolean)
-                    }
-                  })}
-                  InputLabelProps={{ sx: { color: '#a1a1aa' } }}
-                  InputProps={{ sx: { color: '#ffffff' } }}
-                />
-              </Grid>
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Target Cities (comma separated)"
-                  placeholder="New York, London, Tokyo"
-                  value={formData.targetCriteria.cities.join(', ')}
-                  onChange={(e) => setFormData({
-                    ...formData,
-                    targetCriteria: {
-                      ...formData.targetCriteria,
-                      cities: e.target.value.split(',').map(s => s.trim()).filter(Boolean)
-                    }
-                  })}
-                  InputLabelProps={{ sx: { color: '#a1a1aa' } }}
-                  InputProps={{ sx: { color: '#ffffff' } }}
-                />
-              </Grid>
               <Grid item xs={6}>
-                <TextField
-                  fullWidth
-                  label="Rollout Percentage"
-                  type="number"
-                  value={formData.targetCriteria.percentage}
-                  onChange={(e) => setFormData({
-                    ...formData,
-                    targetCriteria: {
-                      ...formData.targetCriteria,
-                      percentage: parseInt(e.target.value)
-                    }
-                  })}
-                  inputProps={{ min: 1, max: 100 }}
-                  InputLabelProps={{ sx: { color: '#a1a1aa' } }}
-                  InputProps={{ sx: { color: '#ffffff' } }}
-                />
+                <Card sx={{ bgcolor: '#0a0a0a', border: '1px solid #27272a' }}>
+                  <CardContent>
+                    <Typography variant="caption" sx={{ color: '#71717a', display: 'block', mb: 1 }}>
+                      Version Change
+                    </Typography>
+                    <Typography variant="body1" sx={{ color: '#ffffff', fontWeight: 500 }}>
+                      v{selectedSchedule.fromVersionCode} → v{selectedSchedule.toVersionCode}
+                    </Typography>
+                  </CardContent>
+                </Card>
               </Grid>
-            </Grid>
-          </DialogContent>
-          <DialogActions sx={{ p: 3, borderTop: '1px solid #27272a' }}>
-            <Button onClick={() => setDialogOpen(false)} sx={{ color: '#a1a1aa' }}>
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleCreateSchedule} 
-              variant="contained"
-              disabled={loading}
-              sx={{ bgcolor: '#3b82f6' }}
-            >
-              {loading ? 'Creating...' : 'Create Schedule'}
-            </Button>
-          </DialogActions>
-        </Dialog>
 
-        {/* Delete Confirmation Dialog */}
-        <Dialog 
-          open={deleteDialogOpen} 
-          onClose={() => setDeleteDialogOpen(false)}
-          PaperProps={{
-            sx: {
-              bgcolor: '#111111',
-              border: '1px solid #27272a',
-            }
-          }}
-        >
-          <DialogTitle sx={{ color: '#ffffff' }}>Delete Schedule</DialogTitle>
-          <DialogContent>
-            <Alert severity="warning" sx={{ mb: 2 }}>
-              This action cannot be undone.
-            </Alert>
-            <Typography sx={{ color: '#e4e4e7' }}>
-              Are you sure you want to delete schedule "{scheduleToDelete?.name}"?
-            </Typography>
-            {scheduleToDelete?.stats?.totalDevices > 0 && (
-              <Typography sx={{ color: '#ef4444', mt: 2, fontSize: '0.875rem' }}>
-                Warning: This schedule has {scheduleToDelete.stats.totalDevices} associated update jobs that will also be deleted.
-              </Typography>
-            )}
-          </DialogContent>
-          <DialogActions sx={{ p: 3 }}>
-            <Button onClick={() => setDeleteDialogOpen(false)} sx={{ color: '#a1a1aa' }}>
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleDeleteSchedule} 
-              color="error" 
-              variant="contained"
-              disabled={loading}
-            >
-              {loading ? 'Deleting...' : 'Delete'}
-            </Button>
-          </DialogActions>
-        </Dialog>
-
-        {/* Schedule Details Dialog */}
-        <Dialog
-          open={detailsDialogOpen}
-          onClose={() => setDetailsDialogOpen(false)}
-          maxWidth="md"
-          fullWidth
-          PaperProps={{
-            sx: {
-              bgcolor: '#111111',
-              border: '1px solid #27272a',
-            }
-          }}
-        >
-          {selectedSchedule && (
-            <>
-              <DialogTitle sx={{ color: '#ffffff', borderBottom: '1px solid #27272a' }}>
-                Schedule Details
-              </DialogTitle>
-              <DialogContent>
-                <Grid container spacing={3} sx={{ mt: 1 }}>
-                  <Grid item xs={12}>
-                    <Typography variant="h6" sx={{ color: '#ffffff', mb: 2 }}>
-                      {selectedSchedule.name}
+              <Grid item xs={6}>
+                <Card sx={{ bgcolor: '#0a0a0a', border: '1px solid #27272a' }}>
+                  <CardContent>
+                    <Typography variant="caption" sx={{ color: '#71717a', display: 'block', mb: 1 }}>
+                      Status
                     </Typography>
-                    <Typography variant="body2" sx={{ color: '#a1a1aa', mb: 3 }}>
-                      {selectedSchedule.description || 'No description provided'}
+                    <Chip
+                      label={selectedSchedule.status.replace(/_/g, ' ')}
+                      icon={getStatusIcon(selectedSchedule.status)}
+                      size="small"
+                      sx={getStatusChipStyle(selectedSchedule.status)}
+                    />
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              <Grid item xs={6}>
+                <Card sx={{ bgcolor: '#0a0a0a', border: '1px solid #27272a' }}>
+                  <CardContent>
+                    <Typography variant="caption" sx={{ color: '#71717a', display: 'block', mb: 1 }}>
+                      Schedule Type
+                    </Typography>
+                    <Typography variant="body1" sx={{ color: '#ffffff', fontWeight: 500, textTransform: 'capitalize' }}>
+                      {selectedSchedule.scheduleType}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              <Grid item xs={6}>
+                <Card sx={{ bgcolor: '#0a0a0a', border: '1px solid #27272a' }}>
+                  <CardContent>
+                    <Typography variant="caption" sx={{ color: '#71717a', display: 'block', mb: 1 }}>
+                      Created By
+                    </Typography>
+                    <Typography variant="body1" sx={{ color: '#ffffff', fontWeight: 500 }}>
+                      {selectedSchedule.createdBy?.userName || 'System'}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: '#71717a' }}>
+                      {format(new Date(selectedSchedule.createdAt), 'PPp')}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              <Grid item xs={12}>
+                <Typography variant="subtitle2" sx={{ color: '#ffffff', mb: 2 }}>
+                  Target Criteria
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={4}>
+                    <Typography variant="caption" sx={{ color: '#71717a', display: 'block' }}>
+                      Regions
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: '#e4e4e7' }}>
+                      {selectedSchedule.targetCriteria?.regions?.length > 0 
+                        ? selectedSchedule.targetCriteria.regions.join(', ') 
+                        : 'All Regions'}
                     </Typography>
                   </Grid>
-
-                  <Grid item xs={6}>
-                    <Card sx={{ bgcolor: '#0a0a0a', border: '1px solid #27272a' }}>
-                      <CardContent>
-                        <Typography variant="caption" sx={{ color: '#71717a', display: 'block', mb: 1 }}>
-                          Version Change
-                        </Typography>
-                        <Typography variant="body1" sx={{ color: '#ffffff', fontWeight: 500 }}>
-                          v{selectedSchedule.fromVersionCode} → v{selectedSchedule.toVersionCode}
-                        </Typography>
-                      </CardContent>
-                    </Card>
+                  <Grid item xs={4}>
+                    <Typography variant="caption" sx={{ color: '#71717a', display: 'block' }}>
+                      Cities
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: '#e4e4e7' }}>
+                      {selectedSchedule.targetCriteria?.cities?.length > 0 
+                        ? selectedSchedule.targetCriteria.cities.join(', ') 
+                        : 'All Cities'}
+                    </Typography>
                   </Grid>
-
-                  <Grid item xs={6}>
-                    <Card sx={{ bgcolor: '#0a0a0a', border: '1px solid #27272a' }}>
-                      <CardContent>
-                        <Typography variant="caption" sx={{ color: '#71717a', display: 'block', mb: 1 }}>
-                          Status
-                        </Typography>
-                        <Chip
-                          label={selectedSchedule.status.replace(/_/g, ' ')}
-                          icon={getStatusIcon(selectedSchedule.status)}
-                          size="small"
-                          sx={getStatusChipStyle(selectedSchedule.status)}
-                        />
-                      </CardContent>
-                    </Card>
+                  <Grid item xs={4}>
+                    <Typography variant="caption" sx={{ color: '#71717a', display: 'block' }}>
+                      Rollout Percentage
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: '#e4e4e7' }}>
+                      {selectedSchedule.targetCriteria?.percentage || 100}%
+                    </Typography>
                   </Grid>
+                </Grid>
+              </Grid>
 
-                  <Grid item xs={6}>
+              <Grid item xs={12}>
+                <Typography variant="subtitle2" sx={{ color: '#ffffff', mb: 2 }}>
+                  Progress Statistics
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={4}>
                     <Card sx={{ bgcolor: '#0a0a0a', border: '1px solid #27272a' }}>
                       <CardContent>
-                        <Typography variant="caption" sx={{ color: '#71717a', display: 'block', mb: 1 }}>
-                          Schedule Type
-                        </Typography>
-                        <Typography variant="body1" sx={{ color: '#ffffff', fontWeight: 500, textTransform: 'capitalize' }}>
-                          {selectedSchedule.scheduleType}
-                        </Typography>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-
-                  <Grid item xs={6}>
-                    <Card sx={{ bgcolor: '#0a0a0a', border: '1px solid #27272a' }}>
-                      <CardContent>
-                        <Typography variant="caption" sx={{ color: '#71717a', display: 'block', mb: 1 }}>
-                          Created By
-                        </Typography>
-                        <Typography variant="body1" sx={{ color: '#ffffff', fontWeight: 500 }}>
-                          {selectedSchedule.createdBy?.userName || 'System'}
+                        <Typography variant="h6" sx={{ color: '#60a5fa', fontWeight: 600 }}>
+                          {selectedSchedule.stats?.totalDevices || 0}
                         </Typography>
                         <Typography variant="caption" sx={{ color: '#71717a' }}>
-                          {format(new Date(selectedSchedule.createdAt), 'PPp')}
+                          Total Devices
                         </Typography>
                       </CardContent>
                     </Card>
                   </Grid>
-
-                  <Grid item xs={12}>
-                    <Typography variant="subtitle2" sx={{ color: '#ffffff', mb: 2 }}>
-                      Target Criteria
-                    </Typography>
-                    <Grid container spacing={2}>
-                      <Grid item xs={4}>
-                        <Typography variant="caption" sx={{ color: '#71717a', display: 'block' }}>
-                          Regions
+                  <Grid item xs={4}>
+                    <Card sx={{ bgcolor: '#0a0a0a', border: '1px solid #27272a' }}>
+                      <CardContent>
+                        <Typography variant="h6" sx={{ color: '#22c55e', fontWeight: 600 }}>
+                          {selectedSchedule.stats?.completedDevices || 0}
                         </Typography>
-                        <Typography variant="body2" sx={{ color: '#e4e4e7' }}>
-                          {selectedSchedule.targetCriteria?.regions?.length > 0 
-                            ? selectedSchedule.targetCriteria.regions.join(', ') 
-                            : 'All Regions'}
+                        <Typography variant="caption" sx={{ color: '#71717a' }}>
+                          Completed
                         </Typography>
-                      </Grid>
-                      <Grid item xs={4}>
-                        <Typography variant="caption" sx={{ color: '#71717a', display: 'block' }}>
-                          Cities
-                        </Typography>
-                        <Typography variant="body2" sx={{ color: '#e4e4e7' }}>
-                          {selectedSchedule.targetCriteria?.cities?.length > 0 
-                            ? selectedSchedule.targetCriteria.cities.join(', ') 
-                            : 'All Cities'}
-                        </Typography>
-                      </Grid>
-                      <Grid item xs={4}>
-                        <Typography variant="caption" sx={{ color: '#71717a', display: 'block' }}>
-                          Rollout Percentage
-                        </Typography>
-                        <Typography variant="body2" sx={{ color: '#e4e4e7' }}>
-                          {selectedSchedule.targetCriteria?.percentage || 100}%
-                        </Typography>
-                      </Grid>
-                    </Grid>
+                      </CardContent>
+                    </Card>
                   </Grid>
-
-                  <Grid item xs={12}>
-                    <Typography variant="subtitle2" sx={{ color: '#ffffff', mb: 2 }}>
-                      Progress Statistics
-                    </Typography>
-                    <Grid container spacing={2}>
-                      <Grid item xs={4}>
-                        <Card sx={{ bgcolor: '#0a0a0a', border: '1px solid #27272a' }}>
-                          <CardContent>
-                            <Typography variant="h6" sx={{ color: '#3b82f6', fontWeight: 600 }}>
-                              {selectedSchedule.stats?.totalDevices || 0}
-                            </Typography>
-                            <Typography variant="caption" sx={{ color: '#71717a' }}>
-                              Total Devices
-                            </Typography>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                      <Grid item xs={4}>
-                        <Card sx={{ bgcolor: '#0a0a0a', border: '1px solid #27272a' }}>
-                          <CardContent>
-                            <Typography variant="h6" sx={{ color: '#22c55e', fontWeight: 600 }}>
-                              {selectedSchedule.stats?.completedDevices || 0}
-                            </Typography>
-                            <Typography variant="caption" sx={{ color: '#71717a' }}>
-                              Completed
-                            </Typography>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                      <Grid item xs={4}>
-                        <Card sx={{ bgcolor: '#0a0a0a', border: '1px solid #27272a' }}>
-                          <CardContent>
-                            <Typography variant="h6" sx={{ color: '#ef4444', fontWeight: 600 }}>
-                              {selectedSchedule.stats?.failedDevices || 0}
-                            </Typography>
-                            <Typography variant="caption" sx={{ color: '#71717a' }}>
-                              Failed
-                            </Typography>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                    </Grid>
+                  <Grid item xs={4}>
+                    <Card sx={{ bgcolor: '#0a0a0a', border: '1px solid #27272a' }}>
+                      <CardContent>
+                        <Typography variant="h6" sx={{ color: '#ef4444', fontWeight: 600 }}>
+                          {selectedSchedule.stats?.failedDevices || 0}
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: '#71717a' }}>
+                          Failed
+                        </Typography>
+                      </CardContent>
+                    </Card>
                   </Grid>
-
-                  {selectedSchedule.scheduleType === 'phased' && selectedSchedule.phasedConfig && (
-                    <Grid item xs={12}>
-                      <Typography variant="subtitle2" sx={{ color: '#ffffff', mb: 2 }}>
-                        Phased Rollout Configuration
-                      </Typography>
-                      <Grid container spacing={2}>
-                        <Grid item xs={6}>
-                          <Card sx={{ bgcolor: '#0a0a0a', border: '1px solid #27272a' }}>
-                            <CardContent>
-                              <Typography variant="caption" sx={{ color: '#71717a', display: 'block' }}>
-                                Batch Size
-                              </Typography>
-                              <Typography variant="body1" sx={{ color: '#ffffff' }}>
-                                {selectedSchedule.phasedConfig.batchSize} devices
-                              </Typography>
-                            </CardContent>
-                          </Card>
-                        </Grid>
-                        <Grid item xs={6}>
-                          <Card sx={{ bgcolor: '#0a0a0a', border: '1px solid #27272a' }}>
-                            <CardContent>
-                              <Typography variant="caption" sx={{ color: '#71717a', display: 'block' }}>
-                                Batch Interval
-                              </Typography>
-                              <Typography variant="body1" sx={{ color: '#ffffff' }}>
-                                {selectedSchedule.phasedConfig.batchInterval} minutes
-                              </Typography>
-                            </CardContent>
-                          </Card>
-                        </Grid>
-                      </Grid>
-                    </Grid>
-                  )}
                 </Grid>
-              </DialogContent>
-              <DialogActions sx={{ p: 3, borderTop: '1px solid #27272a' }}>
-                <Button onClick={() => setDetailsDialogOpen(false)} sx={{ color: '#a1a1aa' }}>
-                  Close
-                </Button>
-                {selectedSchedule.status === 'pending_approval' && (
-                  <>
-                    <Button 
-                      onClick={() => {
-                        handleApproveSchedule(selectedSchedule._id);
-                        setDetailsDialogOpen(false);
-                      }}
-                      variant="contained"
-                      sx={{ bgcolor: '#22c55e' }}
-                    >
-                      Approve
-                    </Button>
-                    <Button 
-                      onClick={() => {
-                        handleCancelSchedule(selectedSchedule._id);
-                        setDetailsDialogOpen(false);
-                      }}
-                      variant="contained"
-                      sx={{ bgcolor: '#ef4444' }}
-                    >
-                      Reject
-                    </Button>
-                  </>
-                )}
-                {selectedSchedule.status === 'in_progress' && (
-                  <Button 
-                    onClick={() => {
-                      handleCancelSchedule(selectedSchedule._id);
-                      setDetailsDialogOpen(false);
-                    }}
-                    variant="contained"
-                    sx={{ bgcolor: '#ef4444' }}
-                  >
-                    Cancel Schedule
-                  </Button>
-                )}
-                {(selectedSchedule.status === 'cancelled' || selectedSchedule.status === 'completed') && (
-                  <Button 
-                    onClick={() => {
-                      setScheduleToDelete(selectedSchedule);
-                      setDetailsDialogOpen(false);
-                      setDeleteDialogOpen(true);
-                    }}
-                    variant="contained"
-                    sx={{ bgcolor: '#ef4444' }}
-                  >
-                    Delete Schedule
-                  </Button>
-                )}
-              </DialogActions>
-            </>
+              </Grid>
+
+              {selectedSchedule.scheduleType === 'phased' && selectedSchedule.phasedConfig && (
+                <Grid item xs={12}>
+                  <Typography variant="subtitle2" sx={{ color: '#ffffff', mb: 2 }}>
+                    Phased Rollout Configuration
+                  </Typography>
+                  <Grid container spacing={2}>
+                    <Grid item xs={6}>
+                      <Card sx={{ bgcolor: '#0a0a0a', border: '1px solid #27272a' }}>
+                        <CardContent>
+                          <Typography variant="caption" sx={{ color: '#71717a', display: 'block' }}>
+                            Batch Size
+                          </Typography>
+                          <Typography variant="body1" sx={{ color: '#ffffff' }}>
+                            {selectedSchedule.phasedConfig.batchSize} devices
+                          </Typography>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Card sx={{ bgcolor: '#0a0a0a', border: '1px solid #27272a' }}>
+                        <CardContent>
+                          <Typography variant="caption" sx={{ color: '#71717a', display: 'block' }}>
+                            Batch Interval
+                          </Typography>
+                          <Typography variant="body1" sx={{ color: '#ffffff' }}>
+                            {selectedSchedule.phasedConfig.batchInterval} minutes
+                          </Typography>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  </Grid>
+                </Grid>
+              )}
+
+              {/* Action Buttons inside details */}
+              {(selectedSchedule.status === 'pending_approval' || 
+                selectedSchedule.status === 'in_progress' || 
+                selectedSchedule.status === 'cancelled' || 
+                selectedSchedule.status === 'completed') && (
+                <Grid item xs={12}>
+                  <Divider sx={{ my: 2, borderColor: '#27272a' }} />
+                  <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+                    {selectedSchedule.status === 'pending_approval' && (
+                      <>
+                        <Button 
+                          onClick={() => {
+                            handleApproveSchedule(selectedSchedule._id);
+                            setDetailsDialogOpen(false);
+                          }}
+                          variant="contained"
+                          sx={{ bgcolor: '#22c55e' }}
+                        >
+                          Approve
+                        </Button>
+                        <Button 
+                          onClick={() => {
+                            handleCancelSchedule(selectedSchedule._id);
+                            setDetailsDialogOpen(false);
+                          }}
+                          variant="contained"
+                          sx={{ bgcolor: '#ef4444' }}
+                        >
+                          Reject
+                        </Button>
+                      </>
+                    )}
+                    {selectedSchedule.status === 'in_progress' && (
+                      <Button 
+                        onClick={() => {
+                          handleCancelSchedule(selectedSchedule._id);
+                          setDetailsDialogOpen(false);
+                        }}
+                        variant="contained"
+                        sx={{ bgcolor: '#ef4444' }}
+                      >
+                        Cancel Schedule
+                      </Button>
+                    )}
+                    {(selectedSchedule.status === 'cancelled' || selectedSchedule.status === 'completed') && (
+                      <Button 
+                        onClick={() => {
+                          setScheduleToDelete(selectedSchedule);
+                          setDetailsDialogOpen(false);
+                          setDeleteDialogOpen(true);
+                        }}
+                        variant="contained"
+                        sx={{ bgcolor: '#ef4444' }}
+                      >
+                        Delete Schedule
+                      </Button>
+                    )}
+                  </Box>
+                </Grid>
+              )}
+            </Grid>
           )}
-        </Dialog>
+        </StyledDialog>
       </Box>
     </PageTransition>
   );
