@@ -2,7 +2,7 @@
 # 📱 Mobile Device Management (MDM) System
 
 ## 🔍 Overview
-This project is a full-stack **Mobile Device Management (MDM) system** that enables centralized management, monitoring, and updating of Android devices.  
+This project is a full-stack **Mobile Device Management (MDM) system** that enables centralized management, monitoring, and updating of mobile devices.  
 It provides real-time visibility into device health, version distribution, and update execution through a modern, analytics-driven dashboard.
 
 ---
