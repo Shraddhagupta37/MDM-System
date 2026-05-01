@@ -38,7 +38,7 @@ router.get('/', auth, async (req, res) => {
     if (version && version !== 'all' && version !== '') {
       query.appVersion = version;
     }
-    
+  
     // OS Versions filter
     if (osVersions && osVersions !== '') {
       const osList = osVersions.split(',').filter(os => os.trim() !== '');
@@ -84,7 +84,7 @@ router.get('/', auth, async (req, res) => {
         { deviceOS: searchRegex },
         { 'location.city': searchRegex },
         { 'location.region': searchRegex },
-        { appVersion: searchRegex }
+        { appVersion: searchRegex },
       ];
     }
 
