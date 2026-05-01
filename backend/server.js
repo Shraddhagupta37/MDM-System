@@ -31,7 +31,7 @@ global.redis = {
 console.log('⚠️ Using mock Redis (no actual Redis server needed)');
 
 // Connect to MongoDB
-mongoose.connect('mongodb://localhost:27017/mdm_system')
+mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log('✅ Connected to MongoDB'))
   .catch(err => {
     console.log('❌ MongoDB connection error:', err.message);

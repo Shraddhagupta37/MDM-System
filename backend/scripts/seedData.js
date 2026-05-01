@@ -1,5 +1,11 @@
 const mongoose = require('mongoose');
-require('dotenv').config();
+// require('dotenv').config();
+const path = require('path');
+
+require('dotenv').config({
+  path: path.resolve(__dirname, '../.env')
+});
+console.log("Using URI:", process.env.MONGODB_URI);
 
 // Import models
 const Device = require('../models/Device');
@@ -60,8 +66,15 @@ const appVersions = [
 
 async function seedDatabase() {
   try {
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/mdm_system');
+    // await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/mdm_system');
+    await mongoose.connect(process.env.MONGODB_URI, {
+      dbName: "mdm_system"
+    });
+    
     console.log('✅ Connected to MongoDB');
+
+    console.log("Connected DB:", mongoose.connection.name);
+    console.log("Host:", mongoose.connection.host);
 
     // Clear existing data
     console.log('Clearing existing data...');
