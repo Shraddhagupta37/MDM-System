@@ -7,7 +7,10 @@ const app = express();
 
 // Middleware
 app.use(cors({
-  origin: 'http://localhost:3000',
+  origin: [
+    "http://localhost:3000",
+    "https://mdm-system-sepia.vercel.app"
+  ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'x-auth-token']
@@ -29,6 +32,8 @@ global.redis = {
 };
 
 console.log('⚠️ Using mock Redis (no actual Redis server needed)');
+
+console.log("ENV MONGODB_URI:", process.env.MONGODB_URI);
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URI)
